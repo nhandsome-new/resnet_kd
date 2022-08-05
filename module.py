@@ -13,12 +13,12 @@ PRETRAIN=True
 TUNE_ONLY_FC=False
 
 OPTIMIZER_NAME = 'Adam'
-LR = 0.1
+LR = 0.001
 MOMENTUM = 0.9
 WEIGHT_DECAY = 5e-4
 
 class ResNetModule(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, RESNET_VERSION, NUM_CLASSES, PRETRAIN, TUNE_ONLY_FC):
         super().__init__()
         self.model = ResNetModel(RESNET_VERSION, NUM_CLASSES, pre_train=PRETRAIN, tune_only_fc=TUNE_ONLY_FC)
         self.criterion = nn.CrossEntropyLoss()
