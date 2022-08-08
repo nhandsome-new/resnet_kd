@@ -40,14 +40,14 @@ class CIFAR10DataModule(pl.LightningDataModule):
     
     def setup(self, stage=None):
         if stage in ['fit', None]:
-            _dataset = CIFAR10(root=DATA_DIR, train=True, transform=self.train_transform)
+            _dataset = CIFAR10(root=self.dataset_conf.path, train=True, transform=self.train_transform)
             self.train_dataset, self.val_dataset = torch.utils.data.random_split(
                 _dataset, [45000, 5000], 
                 generator=torch.Generator().manual_seed(self.dataset_conf.seed)
             )
             
         if stage in ['test', None]:
-            self.test_dataset = CIFAR10(root=DATA_DIR, train=False, transform=self.val_transform)
+            self.test_dataset = CIFAR10(root=self.dataset_conf.path, train=False, transform=self.val_transform)
     
     def get_dataloader(self, dataset, shuffle):
         dataloader = torch.utils.data.DataLoader(

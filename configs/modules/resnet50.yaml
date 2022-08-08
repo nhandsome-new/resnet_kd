@@ -1,0 +1,17 @@
+_target_: src.module.ResNetModule
+
+model_conf:
+  name: resnet50
+  resnet_version: 50
+  num_classes: 10
+  pre_train: True
+  tune_only_fc: False
+
+optimizer_conf:
+  name: Adam
+  lr: 0.001
+  momentum: 0.9
+  weight_decay: 0.0005
+
+criterion_conf:
+  name: CE
