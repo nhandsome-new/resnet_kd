@@ -1,6 +1,7 @@
 _target_: src.module.ResNetModule
 
 model_conf:
+  name: resnet18
   resnet_version: 18
   num_classes: 10
   pre_train: True

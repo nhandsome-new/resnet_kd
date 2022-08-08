@@ -1,5 +1,6 @@
 _target_: src.data.CIFAR10DataModule
 dataset_conf:
+  name: cifar10
   path: data/cifar10
   seed: ${seed}
   batch_size: 128

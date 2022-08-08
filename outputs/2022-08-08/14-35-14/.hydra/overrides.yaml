@@ -1,0 +1,2 @@
+- trainer.gpus=0
+- +trainer.fast_dev_run=1

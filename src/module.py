@@ -20,7 +20,7 @@ class ResNetModule(pl.LightningModule):
         )
         
         self.criterion = self.get_criterion(criterion_conf)
-    
+        self.save_hyperparameters()
     
     def configure_optimizers(self):
         optimizer = self.get_optimizer(self.optimizer_conf, self.parameters())
