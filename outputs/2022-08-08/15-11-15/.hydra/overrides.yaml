@@ -1,3 +1,0 @@
-- trainer.gpus=0
-- +trainer.fast_dev_run=1
-- modules=resnet50.yaml
