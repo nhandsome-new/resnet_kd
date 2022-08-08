@@ -1,32 +1,29 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
 import pytorch_lightning as pl
-from torch.optim import SGD, Adam
 
-from models import ResNetModel
-from data import CIFAR10DataModule
-
-RESNET_VERSION = 18
-NUM_CLASSES = 10
-PRETRAIN=True
-TUNE_ONLY_FC=False
-
-OPTIMIZER_NAME = 'Adam'
-LR = 0.001
-MOMENTUM = 0.9
-WEIGHT_DECAY = 5e-4
+from src.models import ResNetModel
+from src.data import CIFAR10DataModule
 
 class ResNetModule(pl.LightningModule):
-    def __init__(self, RESNET_VERSION, NUM_CLASSES, PRETRAIN, TUNE_ONLY_FC):
+    def __init__(self, model_conf, optimizer_conf, criterion_conf):
         super().__init__()
-        self.model = ResNetModel(RESNET_VERSION, NUM_CLASSES, pre_train=PRETRAIN, tune_only_fc=TUNE_ONLY_FC)
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = {'adam': Adam, 'sgd': SGD}
-        self.prepare_data_per_node = True
+        self.model_conf = model_conf
+        self.optimizer_conf = optimizer_conf
+        self.criterion_conf = criterion_conf
+        
+        self.model = ResNetModel(
+            model_conf.resnet_version, 
+            model_conf.num_classes, 
+            model_conf.pre_train, 
+            model_conf.tune_only_fc
+        )
+        
+        self.criterion = self.get_criterion(criterion_conf)
     
-    def configure_optimizers(self, optimizer_name=OPTIMIZER_NAME, lr=LR):
-        optimizer = self.get_optimizer(optimizer_name, self.parameters(), lr)
+    
+    def configure_optimizers(self):
+        optimizer = self.get_optimizer(self.optimizer_conf, self.parameters())
         return [optimizer]
     
     def forward(self, x):
@@ -61,15 +58,26 @@ class ResNetModule(pl.LightningModule):
         self.log('test_loss', loss)
         self.log('test_acc', acc)
     
-    def get_optimizer(self, optimizer_name, parameters, lr):
+    def get_optimizer(self, optimizer_conf, parameters):
+        optimizer_name = optimizer_conf.name
         if hasattr(torch.optim, optimizer_name):
             optimizer_class = getattr(torch.optim, optimizer_name)
         else:
             raise ValueError(f'Optimizer torch.optim.{optimizer_name} does not exist. Change the configuration optimization.optimizer_name.')
         
-        optimizer = optimizer_class(parameters, lr=lr)
+        optimizer = optimizer_class(
+            parameters, 
+            lr=optimizer_conf.lr, 
+            # momentum=optimizer_conf.momentum,
+            # weight_decay=optimizer_conf.weight_decay
+        )
         
         return optimizer
+    
+    def get_criterion(self, criterion_conf):
+        criterion_name = self.criterion_conf.name
+        if criterion_name == 'CE':
+            return nn.CrossEntropyLoss()
     
 if __name__ == '__main__':
     

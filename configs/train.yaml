@@ -1,0 +1,11 @@
+defaults:
+  - modules: resnet18.yaml
+  - datamodules: cifar10.yaml
+  - trainer: default.yaml
+  - hydra: default.yaml
+  - callbacks:
+      - modelcheckpoint.yaml
+
+seed: 42
+work_dir: ${hydra:runtime.cwd}
+run_name: default_name
