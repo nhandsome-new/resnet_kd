@@ -1,4 +1,4 @@
-_target_: src.module.ResNetModule
+_target_: src.module.KDResNetModule
 
 model_conf:
   name: resnet18
@@ -7,7 +7,10 @@ model_conf:
   pre_train: True
   tune_only_fc: False
   teacher_model_name: resnet50
-  teacher_resnet_version: 50
+  teacher_model_path: data/cifar10/resnet18.pt
+  teacher_lambda: 0.05
+  temperature: 10
+  
 
 optimizer_conf:
   name: Adam

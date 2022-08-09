@@ -1,2 +1,2 @@
 run:
-  dir: logs/${modules.model_conf.name}/${datamodules.dataset_conf.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  dir: ./outputs/${time}

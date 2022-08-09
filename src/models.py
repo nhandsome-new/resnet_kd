@@ -25,23 +25,23 @@ class ResNetModel(nn.Module):
         outputs = self.resnet(inputs)
         return outputs
     
-    def load_saved_model(self, model_path):
-        if not os.path.exists(model_path):
-            raise("File doesn't exist {}".format(checkpoint))
-        if torch.cuda.is_available():
-            checkpoint = torch.load(checkpoint)
-        else:
-            # this helps avoid errors when loading single-GPU-trained weights onto CPU-model
-            checkpoint = torch.load(checkpoint, map_location=lambda storage, loc: storage)
+    # def load_saved_model(self, model_path):
+    #     if not os.path.exists(model_path):
+    #         raise("File doesn't exist {}".format(model_path))
+    #     if torch.cuda.is_available():
+    #         checkpoint = torch.load(model_path)
+    #     else:
+    #         # this helps avoid errors when loading single-GPU-trained weights onto CPU-model
+    #         checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
 
-        get_empty_model()
+    #     get_empty_model()
         
-        model.load_state_dict(checkpoint['state_dict'])
+    #     model.load_state_dict(checkpoint['state_dict'])
 
-        if optimizer:
-            optimizer.load_state_dict(checkpoint['optim_dict'])
+    #     if optimizer:
+    #         optimizer.load_state_dict(checkpoint['optim_dict'])
 
-        return checkpoint
+    #     return checkpoint
                     
 
 if __name__ == '__main__':

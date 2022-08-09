@@ -8,7 +8,7 @@ model_conf:
   tune_only_fc: False
 
 optimizer_conf:
-  name: Adam
+  name: SGD
   lr: 0.001
   momentum: 0.9
   weight_decay: 0.0005

@@ -10,16 +10,17 @@ def main(config):
     trainer = hydra.utils.instantiate(config.trainer)
 
     trainer.fit(model=pl_module, datamodule=data_module)
-    
-@hydra.main(config_path='configs/', config_name='train_kd.yaml')
+
+@hydra.main(config_path='configs/', config_name='train.yaml')
 def test(config):
     print(OmegaConf.to_yaml(cfg=config))
     pl_module = hydra.utils.instantiate(config.modules)
-    data_module = hydra.utils.instantiate(config.datamodules)
-    trainer = hydra.utils.instantiate(config.trainer)
+    # data_module = hydra.utils.instantiate(config.datamodules)
+    # trainer = hydra.utils.instantiate(config.trainer)
 
-    trainer.fit(model=pl_module, datamodule=data_module)
+    # trainer.fit(model=pl_module, datamodule=data_module)
     
+    print(pl_module.teacher_model)
 
 if __name__ == '__main__':
     main()

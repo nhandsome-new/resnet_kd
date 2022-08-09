@@ -4,3 +4,4 @@ ModelCheckpoint:
   mode: "min"
   verbose: False
   filename: "{epoch:02d}"
+  dirpath: ${work_dir}/outputs/${time}

@@ -1,10 +1,11 @@
 import os
 import torch
-from torch import nn
+import torch.nn as nn
+import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from src.models import ResNetModel
-from src.data import CIFAR10DataModule
+from src.cifar10_models import resnet18
 
 class ResNetModule(pl.LightningModule):
     def __init__(self, model_conf, optimizer_conf, criterion_conf):
@@ -20,11 +21,11 @@ class ResNetModule(pl.LightningModule):
             model_conf.tune_only_fc
         )
         
-        self.criterion = self.get_criterion(criterion_conf)
+        self.criterion = self.get_criterion()
         self.save_hyperparameters()
-    
+        
     def configure_optimizers(self):
-        optimizer = self.get_optimizer(self.optimizer_conf, self.parameters())
+        optimizer = self.get_optimizer()
         return [optimizer]
     
     def forward(self, x):
@@ -59,20 +60,25 @@ class ResNetModule(pl.LightningModule):
         self.log('test_loss', loss)
         self.log('test_acc', acc)
     
-    def get_optimizer(self, optimizer_conf, parameters):
-        optimizer_name = optimizer_conf.name
+    def get_optimizer(self):
+        optimizer_name = self.optimizer_conf.name
         if hasattr(torch.optim, optimizer_name):
             optimizer_class = getattr(torch.optim, optimizer_name)
         else:
             raise ValueError(f'Optimizer torch.optim.{optimizer_name} does not exist. Change the configuration optimization.optimizer_name.')
         
-        optimizer = optimizer_class(
-            parameters, 
-            lr=optimizer_conf.lr, 
-            # momentum=optimizer_conf.momentum,
-            # weight_decay=optimizer_conf.weight_decay
-        )
-        
+        if optimizer_name == 'SGD':
+            optimizer = optimizer_class(
+                self.parameters(), 
+                lr = self.optimizer_conf.lr, 
+                momentum = self.optimizer_conf.momentum,
+                weight_decay = self.optimizer_conf.weight_decay
+            )
+        else:
+            optimizer = optimizer_class(
+                self.parameters(), 
+                lr = self.optimizer_conf.lr, 
+            )
         return optimizer
     
     def get_criterion(self):
@@ -93,64 +99,88 @@ class KDResNetModule(pl.LightningModule):
             model_conf.pre_train, 
             model_conf.tune_only_fc
         )
-        self.teacher_model = ResNetModel(model_conf.teacher_resnet_version, model_conf.num_classes)
-        # self.teacher_model.load_state_dict()
-        self.criterion = self.get_criterion(criterion_conf)
+        
+        if 'teacher_model_name' in model_conf:
+            self.T = model_conf.temperature
+            self.teacher_lambda = model_conf.teacher_lambda
+            self.teacher_model = self.load_model()
+            self.teacher_model.eval()
+            for param in self.teacher_model.parameters():
+                param.requires_grad = False
+        else:
+            self.teacher_model = None    
+        
+        self.criterion = self.get_criterion()
         self.save_hyperparameters()
     
+    def load_model(self):
+        model = resnet18()
+        model = resnet18(pretrained=True)
+        # model = torch.load(self.model_conf.teacher_model_path)
+        return model
+        
     def configure_optimizers(self):
-        optimizer = self.get_optimizer(self.optimizer_conf, self.parameters())
+        optimizer = self.get_optimizer()
         return [optimizer]
     
     def forward(self, x):
         output = self.model(x)
         return output
     
-    def compute_loss_and_acc(self, batch):
+    def compute_loss_and_acc(self, batch, stage):
         inputs, labels = batch
         preds = self.forward(inputs)
-        loss = self.criterion(preds, labels)
+        loss_SL = self.criterion(preds, labels)
+        
+        if stage in ['train', 'val']:
+            teacher_outputs = self.teacher_model(inputs)
+            loss_KD = nn.KLDivLoss()(F.log_softmax(preds / self.T, dim=1),
+                                                F.softmax(teacher_outputs / self.T, dim=1))
+            loss = (1 - self.teacher_lambda) * loss_SL + self.teacher_lambda * self.T * self.T * loss_KD
+            
+            self.log(f'{stage}_loss_SL', loss_SL)
+            self.log(f'{stage}_loss_KD', loss_KD)
+        
         acc =  (labels == torch.argmax(preds, 1)).type(torch.FloatTensor).mean()
         
-        return loss, acc
+        self.log(f'{stage}_loss', loss)
+        self.log(f'{stage}_acc', acc)
+        
+        return loss
     
     def training_step(self, batch, batch_idx) :
-        loss, acc = self.compute_loss_and_acc(batch)
-        
-        self.log('train_loss', loss)
-        self.log('train_acc', acc)
+        loss = self.compute_loss_and_acc(batch, 'train')
         
         return loss
 
     def validation_step(self, batch, batch_idx) :
-        loss, acc = self.compute_loss_and_acc(batch)
-        
-        self.log('val_loss', loss)
-        self.log('val_acc', acc)
+        _ = self.compute_loss_and_acc(batch, 'val')
         
     def test_step(self, batch, batch_idx) :
-        loss, acc = self.compute_loss_and_acc(batch)
-        
-        self.log('test_loss', loss)
-        self.log('test_acc', acc)
+        _ = self.compute_loss_and_acc(batch, 'test')
     
-    def get_optimizer(self, optimizer_conf, parameters):
-        optimizer_name = optimizer_conf.name
+    def get_optimizer(self):
+        optimizer_name = self.optimizer_conf.name
         if hasattr(torch.optim, optimizer_name):
             optimizer_class = getattr(torch.optim, optimizer_name)
         else:
             raise ValueError(f'Optimizer torch.optim.{optimizer_name} does not exist. Change the configuration optimization.optimizer_name.')
         
-        optimizer = optimizer_class(
-            parameters, 
-            lr=optimizer_conf.lr, 
-            # momentum=optimizer_conf.momentum,
-            # weight_decay=optimizer_conf.weight_decay
-        )
-        
+        if optimizer_name == 'SGD':
+            optimizer = optimizer_class(
+                self.parameters(), 
+                lr = self.optimizer_conf.lr, 
+                momentum = self.optimizer_conf.momentum,
+                weight_decay = self.optimizer_conf.weight_decay
+            )
+        else:
+            optimizer = optimizer_class(
+                self.parameters(), 
+                lr = self.optimizer_conf.lr, 
+            )
         return optimizer
     
-    def get_criterion(self, criterion_conf):
+    def get_criterion(self):
         criterion_name = self.criterion_conf.name
         if criterion_name == 'CE':
             return nn.CrossEntropyLoss()
