@@ -140,6 +140,8 @@ class KDResNetModule(pl.LightningModule):
             
             self.log(f'{stage}_loss_SL', loss_SL)
             self.log(f'{stage}_loss_KD', loss_KD)
+            acc_teacher =  (labels == torch.argmax(teacher_outputs, 1)).type(torch.FloatTensor).mean()
+            self.log(f'{stage}_acc_teacher', acc_teacher)
         
         acc =  (labels == torch.argmax(preds, 1)).type(torch.FloatTensor).mean()
         
