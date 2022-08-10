@@ -6,6 +6,7 @@ import pytorch_lightning as pl
 
 from src.models import ResNetModel
 from src.cifar10_models import resnet18
+from src.utils.cosine_annealing_warmup import CosineAnnealingWarmUpRestarts
 
 class ResNetModule(pl.LightningModule):
     def __init__(self, model_conf, optimizer_conf, criterion_conf):
@@ -26,6 +27,9 @@ class ResNetModule(pl.LightningModule):
         
     def configure_optimizers(self):
         optimizer = self.get_optimizer()
+        if self.optimizer_conf.use_cosine_anneal :
+            scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=30, T_mult=1, eta_max=0.01,  T_up=5, gamma=0.8)
+            return [optimizer] [scheduler]
         return [optimizer]
     
     def forward(self, x):
@@ -79,6 +83,7 @@ class ResNetModule(pl.LightningModule):
                 self.parameters(), 
                 lr = self.optimizer_conf.lr, 
             )
+
         return optimizer
     
     def get_criterion(self):
