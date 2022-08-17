@@ -12,3 +12,12 @@
 
 - With subset augmentation
 - W/O subset augmentation
+
+
+### 'unexpected key "module.xxx.weight" in state_dict'
+model = torch.nn.DataParallel(model).cuda()
+model.load_state_dict(checkpoint['state_dict'])
+
+### middle_feature = middle_output
+
+

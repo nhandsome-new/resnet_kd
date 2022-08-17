@@ -1,0 +1,10 @@
+_target_: src.data.CIFAR100DataModule
+dataset_conf:
+  name: cifar100
+  path: ${work_dir}/../data/cifar100
+  seed: ${seed}
+  batch_size: 128
+  num_workers: 8
+augmentation_conf:
+  crop_size: 32
+  padding: 4

@@ -3,20 +3,25 @@ _target_: src.module.KDResNetModule
 model_conf:
   name: resnet18
   resnet_version: 18
-  num_classes: 10
+  num_classes: 100
   pre_train: True
   tune_only_fc: False
-  teacher_model_name: resnet50
-  teacher_model_path: data/cifar10/resnet18.pt
-  teacher_lambda: 0.05
+  teacher_model_name: repvgg
+  teacher_model_path: ${work_dir}/../data/cifar100/cifar100_repvgg_a0-2df1edd0.pt
+  teacher_lambda: 0.6
   temperature: 10
   
-
 optimizer_conf:
   name: SGD
-  lr: 0.001
+  lr: 1e-3
   momentum: 0.9
-  weight_decay: 0.0005
+  weight_decay: 5e-4
+  use_cosine_anneal: True
+  anneal_T0: 30
+  anneal_max: 0.1
+  anneal_gamma: 0.5
 
 criterion_conf:
   name: CE
+  use_mixup: True
+  mixup_alpha: 0.4

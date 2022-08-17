@@ -1,4 +1,4 @@
-_target_: src.module.ResNetModule
+_target_: src.module.SelfKDResNetModule
 
 model_conf:
   name: resnet18
@@ -6,7 +6,10 @@ model_conf:
   num_classes: 100
   pre_train: True
   tune_only_fc: False
-
+  self_alpha: 0.1
+  self_beta: 1e-6
+  temperature: 3
+  
 optimizer_conf:
   name: SGD
   lr: 1e-3
@@ -19,3 +22,5 @@ optimizer_conf:
 
 criterion_conf:
   name: CE
+  use_mixup: True
+  mixup_alpha: 0.4

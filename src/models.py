@@ -1,19 +1,17 @@
-import os
-import torch
 from torch import nn
-from torchvision import models
-import pytorch_lightning as pl
+from src.cifar_resnet import resnet18, resnet34, resnet50
+
 
 class ResNetModel(nn.Module):
     def __init__(self, resnet_version, num_classes, pre_train=False, tune_only_fc=False):
         super().__init__()
         resnets = {
-            18: models.resnet18,
-            34: models.resnet34,
-            50: models.resnet50
+            18: resnet18(),
+            34: resnet34(),
+            50: resnet50()
         }
         
-        self.resnet = resnets[resnet_version](pretrained=pre_train)
+        self.resnet = resnets[resnet_version]
         fc_input_size = list(self.resnet.children())[-1].in_features
         self.resnet.fc = nn.Linear(fc_input_size, num_classes)
         
@@ -42,8 +40,7 @@ class ResNetModel(nn.Module):
     #         optimizer.load_state_dict(checkpoint['optim_dict'])
 
     #     return checkpoint
-                    
 
 if __name__ == '__main__':
-    resnet = ResNetModel(18, 10)
+    resnet = ResNetModel(18, 100)
     print(resnet)

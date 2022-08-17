@@ -1,4 +1,4 @@
-_target_: src.module.ResNetModule
+_target_: src.module.TeacherKDResNetModule
 
 model_conf:
   name: resnet18
@@ -6,7 +6,12 @@ model_conf:
   num_classes: 100
   pre_train: True
   tune_only_fc: False
-
+  teacher_model_name: repvgg
+  teacher_model_path: ${work_dir}/../data/cifar100/cifar100_repvgg_a0-2df1edd0.pt
+  temperature: 10
+  self_alpha: 0.1
+  self_beta: 1e-6
+  
 optimizer_conf:
   name: SGD
   lr: 1e-3
@@ -19,3 +24,5 @@ optimizer_conf:
 
 criterion_conf:
   name: CE
+  use_mixup: True
+  mixup_alpha: 0.4
