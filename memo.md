@@ -83,6 +83,49 @@ KDプロセス上、「Teacher・Studentモデルがお互いに学習を行い�
 Offline Distillationと異なり、End-to-End学習ができる・モデルお互いに知識の共有ができるという特徴があります。
 
 ### Self Distillation
+「一つのモデルでKDを行う」方法で、ネットワーク中でTeacherになるある特徴を選択し、その特徴をStudentが学習します。例えば、
+- 「同じイメージ・異なるAugmentation結果」を一つのモデルに通し、お互いのOutputをTeacher・Studentにする
+- 「最終レイヤー・中間レイヤー」のOutputをTeacher・Studentにする
+などの方法が挙げられます。
+一つのモデルを用いているので上記２つの方法と比べ、学習時間・パラメータ数の面でメリットになる特徴があります。
+
+### ３つの方法と一般的なモデル学習の比較
+
+|基準|比較|
+|:---:|:---:|
+|パラメータ数|Online >= Offline > Self >= Normal|
+|学習時間|Offline > Online > Self > Normal|
+|精度|Offline ・ Online ・ Self > Normal|
+
+上記のテーブルは「同じStudentモデルを学習する」という前提で考えてみたモデルの比較です。（３つのKD方法＋Normal学習）
+学習パラメータ・学習時間を考えると、Self Distillationの方が選ばれると思いますが、「既にPre-trainされたTeacherモデルが存在する」「各KD方法には細かいやり方が存在する」「条件によって精度は変わってくる」という面を考えてみると、どっちの方法が優れているとは言い難いと思います。
+
+
+## 今回試してみたことは？
+ResNetを用いて、CIFAR100データの分類モデルを学習してみました。KDを使ってない普通なモデル(Baseline)を学習し、様々な知識蒸留方法を試しながら精度の変化を確認してみます。
+
+### Baselineモデル
+BaselineになるResNetモデルは下記の設定で学習されました。
+- ResNetバージョン：18
+- クラス数：100
+- Loss関数：Cross Entropy Loss
+- Optimizer：SGD
+- Scheduler：Cosine Annealing with Warm Up
+- Epochs : 200
+
+#### Cosine Annealing with Warm Up
+- Image
+
+
+### Offline Distillation モデル
+ResNet18をStudentモデルで、下のようなOffline Distillationモデルを構成しました。
+
+
+### Self Distillation モデル
+
+### Offline + Self Distillation モデル
+
+
 
 
 ## 参考資料

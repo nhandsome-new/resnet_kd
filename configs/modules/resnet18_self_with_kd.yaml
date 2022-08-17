@@ -6,8 +6,8 @@ model_conf:
   num_classes: 100
   pre_train: True
   tune_only_fc: False 
-  teacher_model_name: densenet
-  teacher_model_path: ${work_dir}/../data/cifar100/model_best.pth
+  teacher_model_name: res_multi
+  teacher_model_path: ${work_dir}/../data/cifar100/res_multi_best.path.tar
   # teacher_model_name: repvgg
   # teacher_model_path: ${work_dir}/../data/cifar100/cifar100_repvgg_a0-2df1edd0.pt
   temperature: 10

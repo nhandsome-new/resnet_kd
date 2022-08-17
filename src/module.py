@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 from src.models import ResNetModel
 from src.cifar_resnet import multi_resnet18
 from src.teacher_models.densenet import densenet
+from src.teacher_models.resnet_multi import multi_resnet18_kd
 from src.utils.cosine_annealing_warmup import CosineAnnealingWarmUpRestarts
 from src.utils.support_utils import mixup_data, mixup_criterion, kd_loss_function, feature_loss_function
 import src.teacher_models.repvgg as repvgg
@@ -273,6 +274,12 @@ class TeacherKDResNetModule(BaseModule):
             num_classes = self.model_conf.num_classes
             model = getattr(repvgg, f'cifar{num_classes}_repvgg_a0')()
             model.load_state_dict(checkpoint)
+            
+        elif self.model_conf.teacher_model_name == 'res_multi':
+            checkpoint = torch.load(self.model_conf.teacher_model_path)
+            model = multi_resnet18_kd(self.model_conf.num_classes)
+            model = torch.nn.DataParallel(model)
+            model.load_state_dict(checkpoint['state_dict'])
 
         assert model, 'ERROR : model conf teacher model name'
         return model
@@ -324,6 +331,9 @@ class TeacherKDResNetModule(BaseModule):
             self.log(f'{stage}_feature_loss_1', feature_loss_1)
             self.log(f'{stage}_feature_loss_2', feature_loss_2)
             self.log(f'{stage}_feature_loss_3', feature_loss_3)
+            
+            acc_teacher =  (labels == torch.argmax(teacher_outputs, 1)).type(torch.FloatTensor).mean()
+            self.log(f'{stage}_acc_teacher', acc_teacher)
         
         acc =  (labels == torch.argmax(preds, 1)).type(torch.FloatTensor).mean()
         self.log(f'{stage}_acc', acc)
