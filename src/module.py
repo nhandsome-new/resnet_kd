@@ -1,3 +1,4 @@
+from logging import raiseExceptions
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,62 +11,34 @@ from src.utils.cosine_annealing_warmup import CosineAnnealingWarmUpRestarts
 from src.utils.support_utils import mixup_data, mixup_criterion, kd_loss_function, feature_loss_function
 import src.teacher_models.repvgg as repvgg
 
-class ResNetModule(pl.LightningModule):
-    def __init__(self, model_conf, optimizer_conf, criterion_conf):
+class BaseModule(pl.LightningModule):
+    def __init__(self):
         super().__init__()
-        self.model_conf = model_conf
-        self.optimizer_conf = optimizer_conf
-        self.criterion_conf = criterion_conf
-        
-        self.model = ResNetModel(
-            model_conf.resnet_version, 
-            model_conf.num_classes, 
-            model_conf.pre_train, 
-            model_conf.tune_only_fc
-        )
-        
-        self.criterion = self.get_criterion()
-        self.save_hyperparameters()
-        
+    
+    def compute_loss_and_acc(self, batch, stage):
+        raise NotImplementedError('Override')
+    
+    def load_model(self):
+        raise NotImplementedError('Override')
+    
+    def forward(self, x):
+        output = self.model(x)
+        return output
+    
     def configure_optimizers(self):
         optimizer = self.get_optimizer()
         if self.optimizer_conf.use_cosine_anneal :
             scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=self.optimizer_conf.anneal_T0, T_mult=1, eta_max=self.optimizer_conf.anneal_max, T_up=1, gamma=self.optimizer_conf.anneal_gamma)
             return [optimizer], [scheduler]
         return [optimizer]
-    
-    def forward(self, x):
-        output = self.model(x)
-        return output
-    
-    def compute_loss_and_acc(self, batch):
-        inputs, labels = batch
-        preds = self.forward(inputs)
-        loss = self.criterion(preds, labels)
-        acc =  (labels == torch.argmax(preds, 1)).type(torch.FloatTensor).mean()
-        
-        return loss, acc
-    
+
     def training_step(self, batch, batch_idx) :
-        loss, acc = self.compute_loss_and_acc(batch)
-        
-        self.log('train_loss', loss)
-        self.log('train_acc', acc)
-        
+        loss = self.compute_loss_and_acc(batch, 'train')
         return loss
 
     def validation_step(self, batch, batch_idx) :
-        loss, acc = self.compute_loss_and_acc(batch)
+        _ = self.compute_loss_and_acc(batch, 'val')
         
-        self.log('val_loss', loss)
-        self.log('val_acc', acc)
-        
-    def test_step(self, batch, batch_idx) :
-        loss, acc = self.compute_loss_and_acc(batch)
-        
-        self.log('test_loss', loss)
-        self.log('test_acc', acc)
-    
     def get_optimizer(self):
         optimizer_name = self.optimizer_conf.name
         if hasattr(torch.optim, optimizer_name):
@@ -92,8 +65,44 @@ class ResNetModule(pl.LightningModule):
         criterion_name = self.criterion_conf.name
         if criterion_name == 'CE':
             return nn.CrossEntropyLoss()
+        
+class ResNetModule(BaseModule):
+    '''
+    Without Knowledge Distillation
+    '''
+    def __init__(self, model_conf, optimizer_conf, criterion_conf):
+        super().__init__()
+        self.model_conf = model_conf
+        self.optimizer_conf = optimizer_conf
+        self.criterion_conf = criterion_conf
+        
+        self.model = ResNetModel(
+            model_conf.resnet_version, 
+            model_conf.num_classes, 
+            model_conf.pre_train, 
+            model_conf.tune_only_fc
+        )
+        
+        self.criterion = self.get_criterion()
+        self.save_hyperparameters()
     
-class KDResNetModule(pl.LightningModule):
+    def compute_loss_and_acc(self, batch, stage):
+        inputs, labels = batch
+        preds = self.forward(inputs)
+        loss = self.criterion(preds, labels)
+        acc =  (labels == torch.argmax(preds, 1)).type(torch.FloatTensor).mean()
+        
+        self.log(f'{stage}_loss', acc)
+        self.log(f'{stage}_acc', acc)
+        
+        return loss
+    
+class KDResNetModule(BaseModule):
+    '''
+    With Knowledge Distillation : Offline Distillation
+        Response-based knowledge
+        
+    '''
     def __init__(self, model_conf, optimizer_conf, criterion_conf):
         super().__init__()
         self.model_conf = model_conf
@@ -116,7 +125,8 @@ class KDResNetModule(pl.LightningModule):
             for param in self.teacher_model.parameters():
                 param.requires_grad = False
         else:
-            self.teacher_model = None    
+            raise raiseExceptions('Set Teacher model')   
+        
         self.criterion = self.get_criterion()
         self.save_hyperparameters()
     
@@ -128,8 +138,6 @@ class KDResNetModule(pl.LightningModule):
             model.load_state_dict(checkpoint['state_dict'])
         
         elif self.model_conf.teacher_model_name == 'repvgg':
-            
-            
             checkpoint = torch.load(self.model_conf.teacher_model_path)
             num_classes = self.model_conf.num_classes
             model = getattr(repvgg, f'cifar{num_classes}_repvgg_a0')()
@@ -137,17 +145,6 @@ class KDResNetModule(pl.LightningModule):
 
         assert model, 'ERROR : model conf teacher model name'
         return model
-        
-    def configure_optimizers(self):
-        optimizer = self.get_optimizer()
-        if self.optimizer_conf.use_cosine_anneal :
-            scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=self.optimizer_conf.anneal_T0, T_mult=1, eta_max=self.optimizer_conf.anneal_max, T_up=1, gamma=self.optimizer_conf.anneal_gamma)
-            return [optimizer], [scheduler]
-        return [optimizer]
-    
-    def forward(self, x):
-        output = self.model(x)
-        return output
     
     def compute_loss_and_acc(self, batch, stage):
         inputs, labels = batch
@@ -177,45 +174,11 @@ class KDResNetModule(pl.LightningModule):
         self.log(f'{stage}_acc', acc)
         
         return loss
-    
-    def training_step(self, batch, batch_idx) :
-        loss = self.compute_loss_and_acc(batch, 'train')
         
-        return loss
-
-    def validation_step(self, batch, batch_idx) :
-        _ = self.compute_loss_and_acc(batch, 'val')
-        
-    def test_step(self, batch, batch_idx) :
-        _ = self.compute_loss_and_acc(batch, 'test')
-    
-    def get_optimizer(self):
-        optimizer_name = self.optimizer_conf.name
-        if hasattr(torch.optim, optimizer_name):
-            optimizer_class = getattr(torch.optim, optimizer_name)
-        else:
-            raise ValueError(f'Optimizer torch.optim.{optimizer_name} does not exist. Change the configuration optimization.optimizer_name.')
-        
-        if optimizer_name == 'SGD':
-            optimizer = optimizer_class(
-                self.parameters(), 
-                lr = self.optimizer_conf.lr, 
-                momentum = self.optimizer_conf.momentum,
-                weight_decay = self.optimizer_conf.weight_decay
-            )
-        else:
-            optimizer = optimizer_class(
-                self.parameters(), 
-                lr = self.optimizer_conf.lr, 
-            )
-        return optimizer
-    
-    def get_criterion(self):
-        criterion_name = self.criterion_conf.name
-        if criterion_name == 'CE':
-            return nn.CrossEntropyLoss()
-        
-class SelfKDResNetModule(pl.LightningModule):
+class SelfKDResNetModule(BaseModule):
+    '''
+    With Knowledge Distillation : Self Distillation
+    '''
     def __init__(self, model_conf, optimizer_conf, criterion_conf):
         super().__init__()
         self.model_conf = model_conf
@@ -227,17 +190,6 @@ class SelfKDResNetModule(pl.LightningModule):
         self.criterion = self.get_criterion()
         self.save_hyperparameters()
         
-    def configure_optimizers(self):
-        optimizer = self.get_optimizer()
-        if self.optimizer_conf.use_cosine_anneal :
-            scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=self.optimizer_conf.anneal_T0, T_mult=1, eta_max=self.optimizer_conf.anneal_max, T_up=1, gamma=self.optimizer_conf.anneal_gamma)
-            return [optimizer], [scheduler]
-        return [optimizer]
-    
-    def forward(self, x):
-        output = self.model(x)
-        return output
-    
     def compute_loss_and_acc(self, batch, stage):
         inputs, labels = batch
         
@@ -284,46 +236,11 @@ class SelfKDResNetModule(pl.LightningModule):
         self.log(f'{stage}_acc', acc)
     
         return total_loss
-    
-    def training_step(self, batch, batch_idx) :
-        loss = self.compute_loss_and_acc(batch, 'train')
         
-        return loss
-
-    def validation_step(self, batch, batch_idx) :
-        _ = self.compute_loss_and_acc(batch, 'val')
-        
-    def test_step(self, batch, batch_idx) :
-        _ = self.compute_loss_and_acc(batch, 'test')
-    
-    def get_optimizer(self):
-        optimizer_name = self.optimizer_conf.name
-        if hasattr(torch.optim, optimizer_name):
-            optimizer_class = getattr(torch.optim, optimizer_name)
-        else:
-            raise ValueError(f'Optimizer torch.optim.{optimizer_name} does not exist. Change the configuration optimization.optimizer_name.')
-        
-        if optimizer_name == 'SGD':
-            optimizer = optimizer_class(
-                self.parameters(), 
-                lr = self.optimizer_conf.lr, 
-                momentum = self.optimizer_conf.momentum,
-                weight_decay = self.optimizer_conf.weight_decay
-            )
-        else:
-            optimizer = optimizer_class(
-                self.parameters(), 
-                lr = self.optimizer_conf.lr, 
-            )
-        return optimizer
-    
-    def get_criterion(self):
-        criterion_name = self.criterion_conf.name
-        if criterion_name == 'CE':
-            return nn.CrossEntropyLoss()
-        
-        
-class TeacherKDResNetModule(pl.LightningModule):
+class TeacherKDResNetModule(BaseModule):
+    '''
+    With Knowledge Distillation : Offline + Self Distillation
+    '''
     def __init__(self, model_conf, optimizer_conf, criterion_conf):
         super().__init__()
         self.model_conf = model_conf
@@ -359,17 +276,6 @@ class TeacherKDResNetModule(pl.LightningModule):
 
         assert model, 'ERROR : model conf teacher model name'
         return model
-        
-    def configure_optimizers(self):
-        optimizer = self.get_optimizer()
-        if self.optimizer_conf.use_cosine_anneal :
-            scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=self.optimizer_conf.anneal_T0, T_mult=1, eta_max=self.optimizer_conf.anneal_max, T_up=1, gamma=self.optimizer_conf.anneal_gamma)
-            return [optimizer], [scheduler]
-        return [optimizer]
-    
-    def forward(self, x):
-        output = self.model(x)
-        return output
     
     def compute_loss_and_acc(self, batch, stage):
         inputs, labels = batch
@@ -423,40 +329,3 @@ class TeacherKDResNetModule(pl.LightningModule):
         self.log(f'{stage}_acc', acc)
     
         return total_loss
-    
-    def training_step(self, batch, batch_idx) :
-        loss = self.compute_loss_and_acc(batch, 'train')
-        
-        return loss
-
-    def validation_step(self, batch, batch_idx) :
-        _ = self.compute_loss_and_acc(batch, 'val')
-        
-    def test_step(self, batch, batch_idx) :
-        _ = self.compute_loss_and_acc(batch, 'test')
-    
-    def get_optimizer(self):
-        optimizer_name = self.optimizer_conf.name
-        if hasattr(torch.optim, optimizer_name):
-            optimizer_class = getattr(torch.optim, optimizer_name)
-        else:
-            raise ValueError(f'Optimizer torch.optim.{optimizer_name} does not exist. Change the configuration optimization.optimizer_name.')
-        
-        if optimizer_name == 'SGD':
-            optimizer = optimizer_class(
-                self.parameters(), 
-                lr = self.optimizer_conf.lr, 
-                momentum = self.optimizer_conf.momentum,
-                weight_decay = self.optimizer_conf.weight_decay
-            )
-        else:
-            optimizer = optimizer_class(
-                self.parameters(), 
-                lr = self.optimizer_conf.lr, 
-            )
-        return optimizer
-    
-    def get_criterion(self):
-        criterion_name = self.criterion_conf.name
-        if criterion_name == 'CE':
-            return nn.CrossEntropyLoss()

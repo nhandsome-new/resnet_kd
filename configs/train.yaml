@@ -10,4 +10,3 @@ defaults:
 seed: 42
 work_dir: ${hydra:runtime.cwd}
 time: ${now:%Y-%m-%d_%H-%M-%S}
-# default_path: logs/${modules.model_conf.name}/${datamodules.dataset_conf.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}

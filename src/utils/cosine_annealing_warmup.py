@@ -1,3 +1,8 @@
+'''
+以下Githubからのコード
+https://github.com/gaussian37/pytorch_deep_learning_models/blob/master/cosine_annealing_with_warmup/cosine_annealing_with_warmup.py
+'''
+
 import math
 from torch.optim.lr_scheduler import _LRScheduler
 

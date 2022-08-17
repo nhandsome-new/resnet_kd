@@ -197,8 +197,6 @@ class MultiResNet(nn.Module):
             return a resnet layer
         """
 
-        # we have num_block blocks per layer, the first block
-        # could be 1 or 2, other blocks would always be 1
         strides = [stride] + [1] * (num_blocks - 1)
         layers = []
         for stride in strides:
@@ -255,8 +253,3 @@ def resnet152():
 
 def multi_resnet18():
     return MultiResNet(BasicBlock, [2, 2, 2, 2])
-
-if __name__ == '__main__':
-    rand_input = torch.rand([1,3, 32, 32])
-    model = multi_resnet18()
-    print(model(rand_input)[7].shape)
