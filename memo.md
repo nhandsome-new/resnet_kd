@@ -118,10 +118,35 @@ BaselineになるResNetモデルは下記の設定で学習されました。
 
 
 ### Offline Distillation モデル
-ResNet18をStudentモデルで、下のようなOffline Distillationモデルを構成しました。
+Pre-trainされたTeacherモデルのResponse-base Knowledgeを利用するOffline Distillationモデルを構成しました。詳細は以下のようになります。
+- Image
+- Studentモデル：ResNet18
+- Teacherモデル：repvgg_a0 (Pre-trainedモデル、[参考Github](https://github.com/chenyaofo/pytorch-cifar-models))
+- Loss関数：Cross Entropy Loss、KL Divergence Loss
+- [Mixup](https://paperswithcode.com/method/mixup)：入力イメージの多様性を拡張
+- 他の学習設定はBaselineモデルと同様
+
+#### KDの適応方法
+このモデルでは、TeacherモデルのResponse-based Knowledgeを学習するためのLoss関数で構成されています。
+[Kullback-Leibler divergence loss](https://pytorch.org/docs/stable/generated/torch.nn.KLDivLoss.html)を用いて、Pre-trainされたTeacherモデルOutputのSoftmax結果（正確には[温度付きSoftmax](http://www.kasimte.com/2020/02/14/how-does-temperature-affect-softmax-in-machine-learning.html)）と似たような分布をStudentモデルが作れるように学習が進めます。
+
+#### 温度付きSoftmaxを使う理由
+KD Lossを通じて学習したいのは、正解ラベルを選ぶっていうことより「Teacherモデルと似たようなSoftmax分布を作る」ことです。温度付きSoftmaxを使うことで「確率の低い部分を強調することができ、全般的なTeacherモデルの知識を取れる」ようになります。
 
 
 ### Self Distillation モデル
+ネットワーク最終レイヤーの出力をResponse・Feature-based Knowledgeとして扱うSelf Distillationモデルを構成しました。
+- Image
+- 使用モデル：ResNet18
+- Loss関数：Cross Entropy Loss、KL Divergence Loss、L2 Loss
+- 他の学習設定はBaselineモデルと同様
+
+#### KDの適応方法
+このモデルでは、以下の二つの方法を採用し知識を蒸留させています。
+1. 最終レイヤーからのFeature-based Knowledge(Hint)を中間層で学習
+    Bottleneckを通じサイズが揃えたMiddle Featuresは、最終FeatureとのL2 Lossを求めることで知識を蒸留します。
+2. 最終レイヤーからのResponse-based knowledge(Logits)を中間層で学習
+    Middle Logitsは最終層のLogitsの知識を学習します。 具体的な方法は上記のOffline Distillatinoモデルと同様です。
 
 ### Offline + Self Distillation モデル
 
@@ -129,4 +154,9 @@ ResNet18をStudentモデルで、下のようなOffline Distillationモデルを
 
 
 ## 参考資料
-([Knowledge Distillation: A Survey](https://arxiv.org/pdf/2006.05525.pdf))
+[Knowledge Distillation: A Survey](https://arxiv.org/pdf/2006.05525.pdf)
+
+[Offline Distillation Github](https://github.com/peterliht/knowledge-distillation-pytorch)
+[Self Distillation Github](https://github.com/luanyunteng/pytorch-be-your-own-teacher)
+[Be Your Own Teacher: Improve the Performance of Convolutional Neural Networks via Self Distillation](https://arxiv.org/pdf/1905.08094.pdf)
+
